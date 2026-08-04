@@ -1,0 +1,6 @@
+@import "tailwindcss";
+
+.custom-cluster-marker {
+  background: transparent !important;
+  border: none !important;
+}

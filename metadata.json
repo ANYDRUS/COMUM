@@ -1,0 +1,8 @@
+{
+  "name": "PEDROZO Geo.COMUM - Inteligência Comum",
+  "description": "Plataforma de inteligência estratégica territorial, mapa, dashboard, linha do tempo, gestão de dados com IA e assistente Gemini sobre comunidades e eventos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
