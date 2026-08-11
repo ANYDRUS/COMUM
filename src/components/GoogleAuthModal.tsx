@@ -43,6 +43,8 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
 
   if (!isOpen) return null;
 
+  const currentUserIsAdmin = !user.role || user.role === 'admin';
+
   // Helper to validate Google email
   const isGoogleEmail = (emailStr: string): boolean => {
     const trimmed = emailStr.trim().toLowerCase();
@@ -403,14 +405,25 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => setActiveTab('new_user')}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs shrink-0 flex items-center gap-1 transition-colors"
-                >
-                  <UserPlus className="w-3.5 h-3.5" />
-                  Cadastrar
-                </button>
+                {currentUserIsAdmin && (
+                  <button
+                    onClick={() => setActiveTab('new_user')}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs shrink-0 flex items-center gap-1 transition-colors"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    Cadastrar
+                  </button>
+                )}
               </div>
+
+              {!currentUserIsAdmin && (
+                <div className="bg-amber-50 border border-amber-200 text-amber-800 p-2.5 rounded-xl text-xs flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>
+                    Você está logado no modo <strong>Visualização Simples</strong>. Apenas administradores podem alterar funções ou remover usuários.
+                  </span>
+                </div>
+              )}
 
               {/* Table of Registered Users */}
               <div className="space-y-2">
@@ -447,12 +460,16 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
                       <div className="flex items-center gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 justify-end">
                         <select
                           value={u.role || 'admin'}
+                          disabled={!currentUserIsAdmin}
                           onChange={(e) => onUpdateUserRole(u.id, e.target.value as 'admin' | 'viewer')}
                           className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg border outline-none ${
+                            !currentUserIsAdmin ? 'opacity-70 cursor-not-allowed ' : ''
+                          }${
                             isAdmin
                               ? 'bg-blue-50 text-blue-800 border-blue-200'
                               : 'bg-amber-50 text-amber-800 border-amber-200'
                           }`}
+                          title={currentUserIsAdmin ? 'Alterar função de acesso' : 'Apenas administradores podem alterar funções'}
                         >
                           <option value="admin">Administrador</option>
                           <option value="viewer">Visualização Simples</option>
@@ -471,7 +488,7 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
                           </button>
                         )}
 
-                        {registeredUsers.length > 1 && (
+                        {registeredUsers.length > 1 && currentUserIsAdmin && (
                           <button
                             onClick={() => onDeleteUser(u.id)}
                             className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"

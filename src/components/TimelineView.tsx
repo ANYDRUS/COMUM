@@ -9,6 +9,23 @@ interface TimelineViewProps {
   onToggleSelectCommunity: (id: string) => void;
 }
 
+// Robust helper to parse dates into timestamp numbers for sorting
+const parseDateTimestamp = (dateStr?: string): number => {
+  if (!dateStr) return 0;
+  const clean = dateStr.trim();
+  if (clean.includes('/')) {
+    const parts = clean.split('/');
+    if (parts.length === 3) {
+      const day = parts[0].padStart(2, '0');
+      const month = parts[1].padStart(2, '0');
+      const year = parts[2];
+      return new Date(`${year}-${month}-${day}`).getTime() || 0;
+    }
+  }
+  const timestamp = new Date(clean).getTime();
+  return isNaN(timestamp) ? 0 : timestamp;
+};
+
 export const TimelineView: React.FC<TimelineViewProps> = ({
   dataset,
   selectedIds,
@@ -19,6 +36,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
   const [selectedPj, setSelectedPj] = useState<string>('all');
   const [selectedTipoMov, setSelectedTipoMov] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
 
   // Formatting date helper
@@ -60,12 +78,16 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
     return Array.from(set).sort();
   }, [dataset.movimentos]);
 
-  // Prepared Event List with relational properties
+  // Prepared Event List with relational properties & Movimentos sorted chronologically by DATA_MOV
   const fullTimelineEvents = useMemo(() => {
     return dataset.eventos.map((ev) => {
       const com = dataset.comunidades.find((c) => String(c.ID_COMUNIDADE) === String(ev.ID_COMUNIDADE));
       const pj = dataset.pjs.find((p) => String(p.ID_PJ) === String(ev.ID_PJ));
-      const movs = dataset.movimentos.filter((m) => String(m.ID_EVENTO) === String(ev.ID_EVENTO));
+      // Sort movements chronologically (earliest to latest) by DATA_MOV
+      const movs = dataset.movimentos
+        .filter((m) => String(m.ID_EVENTO) === String(ev.ID_EVENTO))
+        .sort((a, b) => parseDateTimestamp(a.DATA_MOV) - parseDateTimestamp(b.DATA_MOV));
+
       return {
         ...ev,
         comunidade: com,
@@ -75,7 +97,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
     });
   }, [dataset]);
 
-  // Filtered Events
+  // Filtered & Chronologically Sorted Events
   const filteredEvents = useMemo(() => {
     return fullTimelineEvents
       .filter((ev) => {
@@ -119,8 +141,12 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
 
         return true;
       })
-      .sort((a, b) => new Date(b.DATA_EVENTO).getTime() - new Date(a.DATA_EVENTO).getTime());
-  }, [fullTimelineEvents, selectedIds, selectedMunicipio, selectedTipoEvento, selectedPj, selectedTipoMov, searchTerm]);
+      .sort((a, b) => {
+        const timeA = parseDateTimestamp(a.DATA_EVENTO);
+        const timeB = parseDateTimestamp(b.DATA_EVENTO);
+        return sortDirection === 'asc' ? timeA - timeB : timeB - timeA;
+      });
+  }, [fullTimelineEvents, selectedIds, selectedMunicipio, selectedTipoEvento, selectedPj, selectedTipoMov, searchTerm, sortDirection]);
 
   const toggleExpand = (id: string) => {
     const next = new Set(expandedEvents);
@@ -206,6 +232,16 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
           ))}
         </select>
 
+        {/* Chronological Sort Direction */}
+        <select
+          value={sortDirection}
+          onChange={(e) => setSortDirection(e.target.value as 'asc' | 'desc')}
+          className="bg-blue-50 border border-blue-200 text-xs font-bold text-blue-900 rounded-lg px-2.5 py-1.5 outline-none focus:border-blue-500 shadow-2xs"
+        >
+          <option value="asc">📅 Ordem Cronológica (Antigo → Recente)</option>
+          <option value="desc">📅 Ordem Cronológica (Recente → Antigo)</option>
+        </select>
+
         {/* Clear Filters */}
         <button
           onClick={() => {
@@ -214,6 +250,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
             setSelectedPj('all');
             setSelectedTipoMov('all');
             setSearchTerm('');
+            setSortDirection('asc');
           }}
           className="text-xs text-slate-600 hover:text-slate-900 font-medium px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors ml-auto shadow-2xs"
         >
@@ -308,7 +345,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
                     >
                       {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                       <span>
-                        {ev.movimentos.length} Movimento(s) / Encaminhamento(s) Cadastrado(s)
+                        {ev.movimentos.length} Movimento(s) em Ordem Cronológica (Data)
                       </span>
                     </button>
 

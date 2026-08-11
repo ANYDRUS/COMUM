@@ -60,6 +60,20 @@ export const TreeView: React.FC<TreeViewProps> = ({
     return dStr;
   };
 
+  // Safe date timestamp parser
+  const parseDateTimestamp = (dateStr?: string): number => {
+    if (!dateStr) return 0;
+    const clean = dateStr.trim();
+    if (clean.includes('/')) {
+      const parts = clean.split('/');
+      if (parts.length === 3) {
+        return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime() || 0;
+      }
+    }
+    const timestamp = new Date(clean).getTime();
+    return isNaN(timestamp) ? 0 : timestamp;
+  };
+
   // Build root hierarchy
   const buildHierarchy = React.useCallback(() => {
     const root: TreeNodeData = {
@@ -85,7 +99,9 @@ export const TreeView: React.FC<TreeViewProps> = ({
       }
 
       const munNode = municipiosMap.get(munName)!;
-      const comEvents = dataset.eventos.filter((e) => String(e.ID_COMUNIDADE) === String(com.ID_COMUNIDADE));
+      const comEvents = dataset.eventos
+        .filter((e) => String(e.ID_COMUNIDADE) === String(com.ID_COMUNIDADE))
+        .sort((a, b) => parseDateTimestamp(a.DATA_EVENTO) - parseDateTimestamp(b.DATA_EVENTO));
       const hasCoords = hasValidCoordinates(com);
 
       const comNode: TreeNodeData = {
@@ -99,7 +115,9 @@ export const TreeView: React.FC<TreeViewProps> = ({
 
       comEvents.forEach((ev) => {
         const pj = dataset.pjs.find((p) => String(p.ID_PJ) === String(ev.ID_PJ));
-        const evMovs = dataset.movimentos.filter((m) => String(m.ID_EVENTO) === String(ev.ID_EVENTO));
+        const evMovs = dataset.movimentos
+          .filter((m) => String(m.ID_EVENTO) === String(ev.ID_EVENTO))
+          .sort((a, b) => parseDateTimestamp(a.DATA_MOV) - parseDateTimestamp(b.DATA_MOV));
 
         const evNode: TreeNodeData = {
           name: `${formatDateBR(ev.DATA_EVENTO)} - ${ev.NOM_EVENTO}`,

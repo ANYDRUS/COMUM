@@ -28,8 +28,8 @@ export default function App() {
   const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
 
-  // Registered Users Management State
-  const [registeredUsers, setRegisteredUsers] = useState<GoogleUser[]>([
+  // Initial default users
+  const DEFAULT_USERS: GoogleUser[] = [
     {
       id: 'user-1',
       name: 'Adilson Pedrozo',
@@ -57,10 +57,46 @@ export default function App() {
       role: 'viewer',
       isAuthenticated: true,
     },
-  ]);
+  ];
 
-  // Current Active User State
-  const [user, setUser] = useState<GoogleUser>(registeredUsers[0]);
+  // Registered Users Management State with localStorage persistence
+  const [registeredUsers, setRegisteredUsers] = useState<GoogleUser[]>(() => {
+    try {
+      const saved = localStorage.getItem('geocomum_registered_users');
+      if (saved) return JSON.parse(saved);
+    } catch (err) {
+      console.error('Failed to load registered users from storage:', err);
+    }
+    return DEFAULT_USERS;
+  });
+
+  // Current Active User State with localStorage persistence
+  const [user, setUser] = useState<GoogleUser>(() => {
+    try {
+      const savedUser = localStorage.getItem('geocomum_active_user');
+      if (savedUser) return JSON.parse(savedUser);
+    } catch (err) {
+      console.error('Failed to load active user from storage:', err);
+    }
+    return DEFAULT_USERS[0];
+  });
+
+  // Save changes to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('geocomum_registered_users', JSON.stringify(registeredUsers));
+    } catch (err) {
+      console.error(err);
+    }
+  }, [registeredUsers]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('geocomum_active_user', JSON.stringify(user));
+    } catch (err) {
+      console.error(err);
+    }
+  }, [user]);
 
   const handleSelectUser = (selected: GoogleUser) => {
     setUser(selected);
@@ -128,6 +164,20 @@ export default function App() {
     fetchDataset();
   }, [fetchDataset]);
 
+  // Safe date timestamp parser
+  const parseDateTimestamp = (dateStr?: string): number => {
+    if (!dateStr) return 0;
+    const clean = dateStr.trim();
+    if (clean.includes('/')) {
+      const parts = clean.split('/');
+      if (parts.length === 3) {
+        return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime() || 0;
+      }
+    }
+    const timestamp = new Date(clean).getTime();
+    return isNaN(timestamp) ? 0 : timestamp;
+  };
+
   // Process comunidades with relational sub-entities
   const processedComunidades = React.useMemo<ComunidadeProcessed[]>(() => {
     return dataset.comunidades.map((com) => {
@@ -135,7 +185,9 @@ export default function App() {
         .filter((e) => String(e.ID_COMUNIDADE) === String(com.ID_COMUNIDADE))
         .map((ev) => {
           const pj = dataset.pjs.find((p) => String(p.ID_PJ) === String(ev.ID_PJ));
-          const movs = dataset.movimentos.filter((m) => String(m.ID_EVENTO) === String(ev.ID_EVENTO));
+          const movs = dataset.movimentos
+            .filter((m) => String(m.ID_EVENTO) === String(ev.ID_EVENTO))
+            .sort((a, b) => parseDateTimestamp(a.DATA_MOV) - parseDateTimestamp(b.DATA_MOV));
           const pfs = dataset.pfs.filter((f) => pj && String(f.ID_PJ) === String(pj.ID_PJ));
           return {
             ...ev,
@@ -143,7 +195,8 @@ export default function App() {
             movimentos: movs,
             pfsEnvolvidas: pfs,
           };
-        });
+        })
+        .sort((a, b) => parseDateTimestamp(a.DATA_EVENTO) - parseDateTimestamp(b.DATA_EVENTO));
 
       return {
         ...com,
