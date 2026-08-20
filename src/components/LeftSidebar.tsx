@@ -13,7 +13,7 @@ interface LeftSidebarProps {
   selectedEventType: string;
   onEventTypeChange: (type: string) => void;
   onToggleSelect: (id: string) => void;
-  onSelectAll: (select: boolean) => void;
+  onSelectFiltered: (select: boolean, filteredIds: string[]) => void;
   totalCount: number;
 }
 
@@ -27,7 +27,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   selectedEventType,
   onEventTypeChange,
   onToggleSelect,
-  onSelectAll,
+  onSelectFiltered,
   totalCount,
 }) => {
   // Unique Municipalities
@@ -163,18 +163,39 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         {/* Bulk Action Buttons */}
         <div className="flex gap-2 pt-0.5">
           <button
-            onClick={() => onSelectAll(true)}
-            className="flex-1 bg-white hover:bg-slate-100 text-[11px] font-semibold text-slate-700 py-1.5 rounded-lg border border-slate-200 transition-colors flex items-center justify-center gap-1 shadow-2xs"
+            onClick={() => {
+              const filteredIds = filteredList.map((c) => String(c.ID_COMUNIDADE));
+              onSelectFiltered(true, filteredIds);
+            }}
+            className="flex-1 bg-white hover:bg-slate-100 text-[11px] font-semibold text-slate-700 py-1.5 px-2 rounded-lg border border-slate-200 transition-colors flex items-center justify-center gap-1.5 shadow-2xs group"
+            title={
+              hasActiveFilters
+                ? `Selecionar apenas as ${filteredList.length} comunidades filtradas visíveis`
+                : `Selecionar todas as ${filteredList.length} comunidades`
+            }
           >
-            <CheckSquare className="w-3 h-3 text-blue-600" />
-            Selecionar Todos
+            <CheckSquare className="w-3 h-3 text-blue-600 group-hover:scale-110 transition-transform" />
+            <span>Selecionar Todos</span>
+            {hasActiveFilters && (
+              <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded-full font-bold">
+                {filteredList.length}
+              </span>
+            )}
           </button>
           <button
-            onClick={() => onSelectAll(false)}
-            className="flex-1 bg-white hover:bg-slate-100 text-[11px] font-semibold text-slate-700 py-1.5 rounded-lg border border-slate-200 transition-colors flex items-center justify-center gap-1 shadow-2xs"
+            onClick={() => {
+              const filteredIds = filteredList.map((c) => String(c.ID_COMUNIDADE));
+              onSelectFiltered(false, filteredIds);
+            }}
+            className="flex-1 bg-white hover:bg-slate-100 text-[11px] font-semibold text-slate-700 py-1.5 px-2 rounded-lg border border-slate-200 transition-colors flex items-center justify-center gap-1.5 shadow-2xs group"
+            title={
+              hasActiveFilters
+                ? `Desmarcar as ${filteredList.length} comunidades filtradas`
+                : 'Desmarcar todas as comunidades'
+            }
           >
-            <Square className="w-3 h-3 text-slate-400" />
-            Limpar
+            <Square className="w-3 h-3 text-slate-400 group-hover:text-slate-600 transition-colors" />
+            <span>Limpar</span>
           </button>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { GoogleUser } from '../types';
-import { ShieldCheck, User, X, CheckCircle2, Eye, ShieldAlert, UserPlus, Users, Trash2, Edit2, LogIn, Lock } from 'lucide-react';
+import { ShieldCheck, User, X, CheckCircle2, Eye, ShieldAlert, UserPlus, Users, Trash2, Edit2, LogIn, Lock, LogOut } from 'lucide-react';
 
 interface GoogleAuthModalProps {
   user: GoogleUser;
@@ -11,6 +11,7 @@ interface GoogleAuthModalProps {
   onRegisterUser: (newUser: GoogleUser) => void;
   onDeleteUser: (userId: string) => void;
   onUpdateUserRole: (userId: string, newRole: 'admin' | 'viewer') => void;
+  onLogout?: () => void;
 }
 
 export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
@@ -22,6 +23,7 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
   onRegisterUser,
   onDeleteUser,
   onUpdateUserRole,
+  onLogout,
 }) => {
   const [activeTab, setActiveTab] = useState<'login' | 'manage' | 'new_user'>('login');
   
@@ -460,16 +462,22 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
                       <div className="flex items-center gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 justify-end">
                         <select
                           value={u.role || 'admin'}
-                          disabled={!currentUserIsAdmin}
+                          disabled={!currentUserIsAdmin || u.email.toLowerCase() === 'alexandre.n.pedrozo@gmail.com'}
                           onChange={(e) => onUpdateUserRole(u.id, e.target.value as 'admin' | 'viewer')}
                           className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg border outline-none ${
-                            !currentUserIsAdmin ? 'opacity-70 cursor-not-allowed ' : ''
+                            !currentUserIsAdmin || u.email.toLowerCase() === 'alexandre.n.pedrozo@gmail.com' ? 'opacity-80 cursor-not-allowed ' : ''
                           }${
                             isAdmin
                               ? 'bg-blue-50 text-blue-800 border-blue-200'
                               : 'bg-amber-50 text-amber-800 border-amber-200'
                           }`}
-                          title={currentUserIsAdmin ? 'Alterar função de acesso' : 'Apenas administradores podem alterar funções'}
+                          title={
+                            u.email.toLowerCase() === 'alexandre.n.pedrozo@gmail.com'
+                              ? 'Administrador Principal (Função Fixa)'
+                              : currentUserIsAdmin
+                              ? 'Alterar função de acesso'
+                              : 'Apenas administradores podem alterar funções'
+                          }
                         >
                           <option value="admin">Administrador</option>
                           <option value="viewer">Visualização Simples</option>
@@ -488,7 +496,7 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
                           </button>
                         )}
 
-                        {registeredUsers.length > 1 && currentUserIsAdmin && (
+                        {registeredUsers.length > 1 && currentUserIsAdmin && u.email.toLowerCase() !== 'alexandre.n.pedrozo@gmail.com' && (
                           <button
                             onClick={() => onDeleteUser(u.id)}
                             className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
@@ -628,7 +636,22 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
 
         {/* Modal Footer */}
         <div className="border-t border-slate-100 pt-3 flex justify-between items-center text-[10px] text-slate-400 shrink-0">
-          <span>Autenticação Integrada Google Workspace MPPR</span>
+          <div className="flex items-center gap-2">
+            {onLogout && (
+              <button
+                onClick={() => {
+                  onLogout();
+                  onClose();
+                }}
+                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-lg transition-colors flex items-center gap-1 border border-rose-200"
+                title="Desconectar da sessão atual e bloquear tela"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                Sair / Bloquear Tela
+              </button>
+            )}
+            <span className="hidden sm:inline">Autenticação Integrada Google Workspace MPPR</span>
+          </div>
           <button
             onClick={onClose}
             className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition-colors"

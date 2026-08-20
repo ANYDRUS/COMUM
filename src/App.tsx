@@ -7,6 +7,7 @@ import { TimelineView } from './components/TimelineView';
 import { TreeView } from './components/TreeView';
 import { GeminiChatSidebar } from './components/GeminiChatSidebar';
 import { GoogleAuthModal } from './components/GoogleAuthModal';
+import { GoogleGatekeeper } from './components/GoogleGatekeeper';
 import { Map, Clock, GitFork, Sparkles } from 'lucide-react';
 
 export default function App() {
@@ -31,16 +32,7 @@ export default function App() {
   // Initial default users
   const DEFAULT_USERS: GoogleUser[] = [
     {
-      id: 'user-1',
-      name: 'Adilson Pedrozo',
-      email: 'adnpedrozo@mppr.mp.br',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
-      organization: 'Ministério Público do Estado do Paraná (MPPR)',
-      role: 'admin',
-      isAuthenticated: true,
-    },
-    {
-      id: 'user-2',
+      id: 'admin-alexandre',
       name: 'Alexandre N. Pedrozo',
       email: 'alexandre.n.pedrozo@gmail.com',
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
@@ -49,12 +41,12 @@ export default function App() {
       isAuthenticated: true,
     },
     {
-      id: 'user-3',
-      name: 'Consulta Geral MPPR',
-      email: 'consulta.comum@gmail.com',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-      organization: 'Atendimento e Consulta Pública MPPR',
-      role: 'viewer',
+      id: 'admin-adilson',
+      name: 'Adilson Pedrozo',
+      email: 'adnpedrozo@mppr.mp.br',
+      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+      organization: 'Ministério Público do Estado do Paraná (MPPR)',
+      role: 'admin',
       isAuthenticated: true,
     },
   ];
@@ -70,16 +62,33 @@ export default function App() {
     return DEFAULT_USERS;
   });
 
-  // Current Active User State with localStorage persistence
-  const [user, setUser] = useState<GoogleUser>(() => {
+  // Current Active User State with Gatekeeper check (null if logged out)
+  const [user, setUser] = useState<GoogleUser | null>(() => {
     try {
       const savedUser = localStorage.getItem('geocomum_active_user');
-      if (savedUser) return JSON.parse(savedUser);
+      if (savedUser) {
+        const parsed = JSON.parse(savedUser);
+        if (parsed && parsed.isAuthenticated && parsed.email) {
+          return parsed;
+        }
+      }
     } catch (err) {
       console.error('Failed to load active user from storage:', err);
     }
-    return DEFAULT_USERS[0];
+    return null;
   });
+
+  // Fetch authorized users from backend on startup
+  useEffect(() => {
+    fetch('/api/auth/users')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && Array.isArray(data.users) && data.users.length > 0) {
+          setRegisteredUsers(data.users);
+        }
+      })
+      .catch((err) => console.warn('Could not sync users from backend:', err));
+  }, []);
 
   // Save changes to localStorage
   useEffect(() => {
@@ -92,17 +101,31 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('geocomum_active_user', JSON.stringify(user));
+      if (user && user.isAuthenticated) {
+        localStorage.setItem('geocomum_active_user', JSON.stringify(user));
+      } else {
+        localStorage.removeItem('geocomum_active_user');
+      }
     } catch (err) {
       console.error(err);
     }
   }, [user]);
 
   const handleSelectUser = (selected: GoogleUser) => {
-    setUser(selected);
+    setUser({ ...selected, isAuthenticated: true });
   };
 
-  const handleRegisterUser = (newUserObj: GoogleUser) => {
+  const handleLoginSuccess = (authenticatedUser: GoogleUser) => {
+    setUser(authenticatedUser);
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('geocomum_active_user');
+  };
+
+  const handleRegisterUser = async (newUserObj: GoogleUser) => {
+    // Update locally
     setRegisteredUsers((prev) => {
       const existsIndex = prev.findIndex((u) => u.email.toLowerCase() === newUserObj.email.toLowerCase());
       if (existsIndex >= 0) {
@@ -112,18 +135,43 @@ export default function App() {
       }
       return [...prev, newUserObj];
     });
+
+    // Persist to backend server
+    try {
+      await fetch('/api/auth/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUserObj),
+      });
+    } catch (err) {
+      console.error('Failed to sync new user to server:', err);
+    }
   };
 
-  const handleDeleteUser = (userId: string) => {
+  const handleDeleteUser = async (userId: string) => {
     setRegisteredUsers((prev) => prev.filter((u) => u.id !== userId));
+    try {
+      await fetch(`/api/auth/users/${userId}`, { method: 'DELETE' });
+    } catch (err) {
+      console.error('Failed to delete user on server:', err);
+    }
   };
 
-  const handleUpdateUserRole = (userId: string, newRole: 'admin' | 'viewer') => {
+  const handleUpdateUserRole = async (userId: string, newRole: 'admin' | 'viewer') => {
     setRegisteredUsers((prev) =>
       prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
     );
-    if (user.id === userId) {
-      setUser((prev) => ({ ...prev, role: newRole }));
+    if (user && user.id === userId) {
+      setUser((prev) => (prev ? { ...prev, role: newRole } : null));
+    }
+    try {
+      await fetch(`/api/auth/users/${userId}/role`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: newRole }),
+      });
+    } catch (err) {
+      console.error('Failed to update role on server:', err);
     }
   };
 
@@ -213,15 +261,31 @@ export default function App() {
     setSelectedIds(next);
   };
 
-  // Select all or clear
-  const handleSelectAll = (select: boolean) => {
+  // Select filtered communities or clear
+  const handleSelectFiltered = (select: boolean, filteredIds: string[]) => {
     if (!select) {
-      setSelectedIds(new Set());
+      if (filteredIds.length === processedComunidades.length) {
+        setSelectedIds(new Set());
+      } else {
+        const next = new Set(selectedIds);
+        filteredIds.forEach((id) => next.delete(id));
+        setSelectedIds(next);
+      }
     } else {
-      const allIds = new Set(processedComunidades.map((c) => String(c.ID_COMUNIDADE)));
-      setSelectedIds(allIds);
+      // Select exactly the filtered communities currently matching the active filters
+      setSelectedIds(new Set(filteredIds));
     }
   };
+
+  // Gatekeeper check: If user is not authenticated, show Entry Gatekeeper
+  if (!user || !user.isAuthenticated) {
+    return (
+      <GoogleGatekeeper
+        onSuccessLogin={handleLoginSuccess}
+        registeredUsers={registeredUsers}
+      />
+    );
+  }
 
   return (
     <div className="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col overflow-hidden select-none">
@@ -234,6 +298,7 @@ export default function App() {
         isChatOpen={isChatOpen}
         onSyncSheets={handleSyncSheets}
         isSyncingSheets={isSyncingSheets}
+        onLogout={handleLogout}
       />
 
       {/* Main App Workspace Layout */}
@@ -249,7 +314,7 @@ export default function App() {
           selectedEventType={selectedEventType}
           onEventTypeChange={setSelectedEventType}
           onToggleSelect={handleToggleSelect}
-          onSelectAll={handleSelectAll}
+          onSelectFiltered={handleSelectFiltered}
           totalCount={dataset.comunidades.length}
         />
 
@@ -303,6 +368,7 @@ export default function App() {
                 onToggleSelect={handleToggleSelect}
                 selectedMunicipio={selectedMunicipio}
                 selectedEventType={selectedEventType}
+                searchTerm={searchTerm}
               />
             )}
 
@@ -346,6 +412,7 @@ export default function App() {
           onRegisterUser={handleRegisterUser}
           onDeleteUser={handleDeleteUser}
           onUpdateUserRole={handleUpdateUserRole}
+          onLogout={handleLogout}
         />
       )}
     </div>

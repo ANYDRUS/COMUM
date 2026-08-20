@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { GoogleUser } from '../types';
-import { User, Bot, Sparkles, FileSpreadsheet } from 'lucide-react';
+import { User, Bot, Sparkles, FileSpreadsheet, LogOut, Shield } from 'lucide-react';
 
 interface HeaderProps {
   selectionCount: number;
@@ -10,6 +10,7 @@ interface HeaderProps {
   isChatOpen: boolean;
   onSyncSheets?: () => void;
   isSyncingSheets?: boolean;
+  onLogout?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -20,6 +21,7 @@ export const Header: React.FC<HeaderProps> = ({
   isChatOpen,
   onSyncSheets,
   isSyncingSheets = false,
+  onLogout,
 }) => {
   const isAdmin = !user.role || user.role === 'admin';
 
@@ -79,14 +81,14 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={onOpenAuth}
           className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200/80 border border-slate-200 px-3 py-1.5 rounded-full transition-colors text-xs text-slate-700 font-medium"
-          title={`Perfil de Acesso: ${isAdmin ? 'Administrador' : 'Visualização Simples'} (${user.email})`}
+          title={`Gerenciar Usuários & Perfil: ${isAdmin ? 'Administrador' : 'Visualização Simples'} (${user.email})`}
         >
           {user.avatar ? (
             <img src={user.avatar} alt={user.name} className="w-5 h-5 rounded-full object-cover border border-slate-300" />
           ) : (
             <User className="w-3.5 h-3.5 text-blue-600" />
           )}
-          <span className="hidden md:inline text-[11px] font-medium truncate max-w-[120px] text-slate-700">{user.email}</span>
+          <span className="hidden md:inline text-[11px] font-medium truncate max-w-[130px] text-slate-700">{user.email}</span>
           
           {isAdmin ? (
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200 hidden sm:inline">
@@ -98,6 +100,17 @@ export const Header: React.FC<HeaderProps> = ({
             </span>
           )}
         </button>
+
+        {/* Logout Action Button */}
+        {onLogout && (
+          <button
+            onClick={onLogout}
+            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-lg transition-colors"
+            title="Sair / Desconectar da conta Google"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+          </button>
+        )}
 
         {/* Inteligência Comum Drawer Toggle */}
         <button

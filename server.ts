@@ -5,7 +5,7 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import { initialDataset } from "./src/data/initialData";
-import { FullDataset, ExtractedEntitiesDraft } from "./src/types";
+import { FullDataset, ExtractedEntitiesDraft, GoogleUser } from "./src/types";
 
 dotenv.config();
 
@@ -17,7 +17,66 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // Persistent Data File Path
 const DATA_FILE = path.join(process.cwd(), "geocomum_data.json");
+const USERS_FILE = path.join(process.cwd(), "geocomum_users.json");
 const GOOGLE_SPREADSHEET_ID = "1LB6am5MTMhlCLAjdXhmpOoubScjnGx5L7OqQwWcfbM4";
+
+// Initial Authorized Users (Allowlist) with root admin alexandre.n.pedrozo@gmail.com
+const DEFAULT_AUTHORIZED_USERS: GoogleUser[] = [
+  {
+    id: "admin-alexandre",
+    name: "Alexandre N. Pedrozo",
+    email: "alexandre.n.pedrozo@gmail.com",
+    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+    organization: "Ministério Público do Estado do Paraná (MPPR)",
+    role: "admin",
+    isAuthenticated: true,
+  },
+  {
+    id: "admin-adilson",
+    name: "Adilson Pedrozo",
+    email: "adnpedrozo@mppr.mp.br",
+    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80",
+    organization: "Ministério Público do Estado do Paraná (MPPR)",
+    role: "admin",
+    isAuthenticated: true,
+  },
+];
+
+function loadAuthorizedUsers(): GoogleUser[] {
+  try {
+    if (fs.existsSync(USERS_FILE)) {
+      const content = fs.readFileSync(USERS_FILE, "utf-8");
+      const users: GoogleUser[] = JSON.parse(content);
+      // Ensure root admin alexandre.n.pedrozo@gmail.com is always present and has admin role
+      const rootExists = users.some(
+        (u) => u.email.toLowerCase() === "alexandre.n.pedrozo@gmail.com"
+      );
+      if (!rootExists) {
+        users.unshift(DEFAULT_AUTHORIZED_USERS[0]);
+      } else {
+        const root = users.find(
+          (u) => u.email.toLowerCase() === "alexandre.n.pedrozo@gmail.com"
+        );
+        if (root) root.role = "admin";
+      }
+      return users;
+    }
+  } catch (err) {
+    console.error("Error reading users file:", err);
+  }
+  saveAuthorizedUsers(DEFAULT_AUTHORIZED_USERS);
+  return DEFAULT_AUTHORIZED_USERS;
+}
+
+function saveAuthorizedUsers(users: GoogleUser[]) {
+  try {
+    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
+  } catch (err) {
+    console.error("Error saving users file:", err);
+  }
+}
+
+let currentAuthorizedUsers = loadAuthorizedUsers();
 
 // Robust CSV Parser for Google Sheets CSV Export
 function parseCSV(text: string): string[][] {
@@ -376,6 +435,144 @@ function getGeminiAI() {
 }
 
 // --- API ROUTES ---
+
+// 0. AUTHENTICATION & ACCESS CONTROL (Google Gatekeeper & Allowlist)
+app.get("/api/auth/users", (req, res) => {
+  res.json({ users: currentAuthorizedUsers });
+});
+
+app.post("/api/auth/verify", (req, res) => {
+  try {
+    const { email, name, avatar } = req.body;
+    if (!email || typeof email !== "string") {
+      return res.status(400).json({ authorized: false, error: "E-mail não fornecido." });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    
+    // Always ensure alexandre.n.pedrozo@gmail.com is authorized as Administrator
+    if (cleanEmail === "alexandre.n.pedrozo@gmail.com") {
+      let adminUser = currentAuthorizedUsers.find((u) => u.email.toLowerCase() === cleanEmail);
+      if (!adminUser) {
+        adminUser = {
+          id: "admin-alexandre",
+          name: name || "Alexandre N. Pedrozo",
+          email: "alexandre.n.pedrozo@gmail.com",
+          avatar: avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+          organization: "Ministério Público do Estado do Paraná (MPPR)",
+          role: "admin",
+          isAuthenticated: true,
+        };
+        currentAuthorizedUsers.unshift(adminUser);
+        saveAuthorizedUsers(currentAuthorizedUsers);
+      }
+      return res.json({
+        authorized: true,
+        user: { ...adminUser, isAuthenticated: true },
+        message: "Administrador autenticado com sucesso.",
+      });
+    }
+
+    // Check if user is in authorized list
+    const foundUser = currentAuthorizedUsers.find((u) => u.email.toLowerCase() === cleanEmail);
+
+    if (foundUser) {
+      return res.json({
+        authorized: true,
+        user: { ...foundUser, isAuthenticated: true },
+        message: "Usuário autorizado autenticado com sucesso.",
+      });
+    }
+
+    // User is NOT in the allowlist
+    return res.status(403).json({
+      authorized: false,
+      error: `Acesso não autorizado. O e-mail "${email}" não possui permissão para acessar o GeoCOMUM. Solicite autorização ao administrador Alexandre N. Pedrozo (alexandre.n.pedrozo@gmail.com).`,
+    });
+  } catch (err: any) {
+    res.status(500).json({ authorized: false, error: err.message });
+  }
+});
+
+app.post("/api/auth/users", (req, res) => {
+  try {
+    const { name, email, organization, role, avatar } = req.body;
+    if (!email || !name) {
+      return res.status(400).json({ error: "Nome e e-mail são obrigatórios." });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const existingIndex = currentAuthorizedUsers.findIndex((u) => u.email.toLowerCase() === cleanEmail);
+
+    const newUserObj: GoogleUser = {
+      id: existingIndex >= 0 ? currentAuthorizedUsers[existingIndex].id : `user-${Date.now()}`,
+      name: name.trim(),
+      email: cleanEmail,
+      organization: organization ? organization.trim() : "Ministério Público do Estado do Paraná (MPPR)",
+      role: role === "admin" ? "admin" : "viewer",
+      avatar: avatar || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80",
+      isAuthenticated: true,
+    };
+
+    if (existingIndex >= 0) {
+      currentAuthorizedUsers[existingIndex] = newUserObj;
+    } else {
+      currentAuthorizedUsers.push(newUserObj);
+    }
+
+    saveAuthorizedUsers(currentAuthorizedUsers);
+    res.json({ success: true, users: currentAuthorizedUsers, user: newUserObj });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/auth/users/:id/role", (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role } = req.body;
+
+    const userToUpdate = currentAuthorizedUsers.find((u) => u.id === id);
+    if (!userToUpdate) {
+      return res.status(404).json({ error: "Usuário não encontrado." });
+    }
+
+    // Root admin role cannot be downgraded
+    if (userToUpdate.email.toLowerCase() === "alexandre.n.pedrozo@gmail.com" && role !== "admin") {
+      return res.status(400).json({ error: "O administrador principal não pode ter sua função alterada." });
+    }
+
+    userToUpdate.role = role === "admin" ? "admin" : "viewer";
+    saveAuthorizedUsers(currentAuthorizedUsers);
+
+    res.json({ success: true, users: currentAuthorizedUsers });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/auth/users/:id", (req, res) => {
+  try {
+    const { id } = req.params;
+    const userToDelete = currentAuthorizedUsers.find((u) => u.id === id);
+
+    if (!userToDelete) {
+      return res.status(404).json({ error: "Usuário não encontrado." });
+    }
+
+    // Root admin cannot be deleted
+    if (userToDelete.email.toLowerCase() === "alexandre.n.pedrozo@gmail.com") {
+      return res.status(400).json({ error: "O administrador principal não pode ser removido do sistema." });
+    }
+
+    currentAuthorizedUsers = currentAuthorizedUsers.filter((u) => u.id !== id);
+    saveAuthorizedUsers(currentAuthorizedUsers);
+
+    res.json({ success: true, users: currentAuthorizedUsers });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // 1. GET FULL DATASET
 app.get("/api/data", (req, res) => {

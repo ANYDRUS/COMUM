@@ -14,6 +14,7 @@ interface MapViewProps {
   onToggleSelect: (id: string) => void;
   selectedMunicipio: string;
   selectedEventType?: string;
+  searchTerm?: string;
 }
 
 export const MapView: React.FC<MapViewProps> = ({
@@ -22,6 +23,7 @@ export const MapView: React.FC<MapViewProps> = ({
   onToggleSelect,
   selectedMunicipio,
   selectedEventType = 'all',
+  searchTerm = '',
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -29,17 +31,31 @@ export const MapView: React.FC<MapViewProps> = ({
   const markersGroupRef = useRef<{ [key: string]: L.CircleMarker }>({});
   const [mapStyle, setMapStyle] = useState<'satellite' | 'streets'>('streets');
 
-  // Filtered comunidades on Map based on left sidebar filters
+  // Filtered comunidades on Map based on left sidebar filters (search, municipality, event type)
   const mapFilteredComunidades = React.useMemo(() => {
+    const norm = (str: string) =>
+      (str || '')
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+
+    const normSearch = norm(searchTerm);
+    const normSelMun = norm(selectedMunicipio);
+
     return comunidades.filter((c) => {
-      const matchMun = selectedMunicipio === 'all' || c.MUNICIPIO === selectedMunicipio;
+      const normNom = norm(c.NOM_COMUNIDADE);
+      const normMun = norm(c.MUNICIPIO);
+
+      const matchSearch = !normSearch || normNom.includes(normSearch) || normMun.includes(normSearch);
+      const matchMun = selectedMunicipio === 'all' || normMun === normSelMun;
       let matchEvt = selectedEventType === 'all';
       if (selectedEventType !== 'all') {
         matchEvt = (c.eventos || []).some((e) => e.TIPO_EVENTO === selectedEventType);
       }
-      return matchMun && matchEvt;
+      return matchSearch && matchMun && matchEvt;
     });
-  }, [comunidades, selectedMunicipio, selectedEventType]);
+  }, [comunidades, selectedMunicipio, selectedEventType, searchTerm]);
 
   // Communities with valid coordinates for plotting on map
   const comunidadesComCoords = React.useMemo(() => {
