@@ -129,14 +129,18 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
 
         // Search term
         if (searchTerm.trim() !== '') {
-          const term = searchTerm.toLowerCase();
+          const term = searchTerm.toLowerCase().replace('#', '');
+          const matchId = String(ev.ID_EVENTO).includes(term);
           const matchTitle = ev.NOM_EVENTO.toLowerCase().includes(term);
           const matchDes = (ev.DES_EVENTO || '').toLowerCase().includes(term);
           const matchCom = (ev.comunidade?.NOM_COMUNIDADE || '').toLowerCase().includes(term);
           const matchMov = ev.movimentos.some(
-            (m) => m.NOM_MOV.toLowerCase().includes(term) || (m.DESC_MOV || '').toLowerCase().includes(term)
+            (m) =>
+              String(m.ID_MOVIMENTO).includes(term) ||
+              m.NOM_MOV.toLowerCase().includes(term) ||
+              (m.DESC_MOV || '').toLowerCase().includes(term)
           );
-          if (!matchTitle && !matchDes && !matchCom && !matchMov) return false;
+          if (!matchTitle && !matchDes && !matchCom && !matchMov && !matchId) return false;
         }
 
         return true;
@@ -288,6 +292,9 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
 
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
+                        <span className="bg-blue-100/80 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-md border border-blue-200 shadow-2xs">
+                          ID: #{ev.ID_EVENTO}
+                        </span>
                         <h3 className="text-sm font-bold text-slate-900">{ev.NOM_EVENTO}</h3>
                         <span className="bg-slate-100 text-slate-700 text-[10px] font-semibold px-2 py-0.5 rounded border border-slate-200">
                           {ev.TIPO_EVENTO}

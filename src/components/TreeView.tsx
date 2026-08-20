@@ -120,10 +120,11 @@ export const TreeView: React.FC<TreeViewProps> = ({
           .sort((a, b) => parseDateTimestamp(a.DATA_MOV) - parseDateTimestamp(b.DATA_MOV));
 
         const evNode: TreeNodeData = {
-          name: `${formatDateBR(ev.DATA_EVENTO)} - ${ev.NOM_EVENTO}`,
+          name: `[#${ev.ID_EVENTO}] ${formatDateBR(ev.DATA_EVENTO)} - ${ev.NOM_EVENTO}`,
           rawName: ev.NOM_EVENTO,
           level: 4,
           type: 'Evento',
+          id: ev.ID_EVENTO,
           dataDate: formatDateBR(ev.DATA_EVENTO),
           resp: pj ? pj.NOM_PJ : 'N/A',
           desc: ev.DES_EVENTO,
@@ -135,6 +136,7 @@ export const TreeView: React.FC<TreeViewProps> = ({
             name: `${formatDateBR(mov.DATA_MOV)} - ${mov.NOM_MOV}`,
             level: 5,
             type: 'Movimento',
+            id: mov.ID_MOVIMENTO,
             desc: mov.DESC_MOV,
             dataDate: formatDateBR(mov.DATA_MOV),
             resp: mov.RESPONSAVEL_MOV,
@@ -466,7 +468,7 @@ export const TreeView: React.FC<TreeViewProps> = ({
         .attr('dy', '-0.3em')
         .attr('x', (d: any) => (d.children || d._children ? -14 : 14))
         .attr('text-anchor', (d: any) => (d.children || d._children ? 'end' : 'start'))
-        .text((d: any) => (d.data.name.length > 38 ? d.data.name.slice(0, 36) + '...' : d.data.name))
+        .text((d: any) => (d.data.name.length > 46 ? d.data.name.slice(0, 44) + '...' : d.data.name))
         .style('fill', '#0f172a')
         .style('font-size', '11px')
         .style('font-weight', '600')
@@ -745,9 +747,16 @@ export const TreeView: React.FC<TreeViewProps> = ({
         <div className="absolute top-24 right-5 w-80 bg-white/95 backdrop-blur-md p-5 rounded-xl border border-slate-200 shadow-xl z-30 text-xs text-slate-800">
           <div className="flex justify-between items-start mb-2">
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-blue-600">
-                {selectedNode.type} (Nível {selectedNode.level})
-              </span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-blue-600">
+                  {selectedNode.type} (Nível {selectedNode.level})
+                </span>
+                {selectedNode.id !== undefined && (
+                  <span className="text-[10px] font-bold bg-blue-100 text-blue-900 px-1.5 py-0.5 rounded border border-blue-200">
+                    {selectedNode.type === 'Evento' ? `ID_EVENTO: #${selectedNode.id}` : `ID: #${selectedNode.id}`}
+                  </span>
+                )}
+              </div>
               <h2 className="text-sm font-bold text-slate-900 mt-0.5">{selectedNode.name}</h2>
             </div>
             <button onClick={() => setSelectedNode(null)} className="text-slate-400 hover:text-slate-600">
@@ -756,6 +765,14 @@ export const TreeView: React.FC<TreeViewProps> = ({
           </div>
 
           <div className="space-y-2 mt-3 pt-3 border-t border-slate-100 text-slate-700">
+            {selectedNode.id !== undefined && (
+              <p>
+                <strong className="text-slate-500">
+                  {selectedNode.type === 'Evento' ? 'ID do Evento:' : selectedNode.type === 'Movimento' ? 'ID do Movimento:' : 'ID:'}
+                </strong>{' '}
+                <span className="font-bold text-blue-700">#{selectedNode.id}</span>
+              </p>
+            )}
             {selectedNode.dataDate && (
               <p>
                 <strong className="text-slate-500">Data:</strong> {selectedNode.dataDate}
